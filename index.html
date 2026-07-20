@@ -3,325 +3,286 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistem Absensi Pro</title>
+    <title>Sistem Absensi Online</title>
+    
+    <!-- Memanggil Library Firebase v8 -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
     <style>
-        /* TEMA MODERN & MENARIK */
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap');
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background: #f0f2f5; }
+        .container { max-width: 500px; margin: auto; background: white; min-height: 100vh; padding: 20px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        h2 { text-align: center; color: #333; margin-top: 0; }
         
-        * { box-sizing: border-box; font-family: 'Poppins', sans-serif; margin: 0; padding: 0; }
-        body { background: linear-gradient(135deg, #74ebd5 0%, #9face6 100%); min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; }
+        /* Navigasi Tab */
+        .nav { display: flex; gap: 10px; margin-bottom: 20px; }
+        .nav button { flex: 1; padding: 12px; border: none; background: #e4e6eb; color: #333; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        .nav button.active { background: #007bff; color: white; }
+        .tab { display: none; }
+        .tab.active { display: block; }
         
-        .container { background: #ffffff; padding: 30px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); width: 100%; max-width: 550px; text-align: center; display: none; animation: fadeIn 0.4s ease-in-out; }
-        .container.active { display: block; }
-        .container-lebar { max-width: 850px; }
+        /* Scanner */
+        video { width: 100%; border-radius: 12px; background: #000; margin-bottom: 15px; transform: scaleX(-1); }
+        .input-group { margin-bottom: 15px; }
+        input[type="text"], input[type="date"] { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; font-size: 16px; text-align: center; }
+        .btn-group { display: flex; gap: 10px; }
+        .btn-group button { flex: 1; padding: 15px; border: none; border-radius: 8px; cursor: pointer; color: white; font-weight: bold; font-size: 16px; }
+        .btn-masuk { background: #28a745; }
+        .btn-pulang { background: #dc3545; }
         
-        h2 { color: #333; margin-bottom: 20px; font-weight: 700; font-size: 24px; }
+        /* Tabel */
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
+        th { background: #f8f9fa; }
+        .foto-container img { max-width: 45px; border-radius: 5px; margin: 2px; border: 1px solid #ccc; }
         
-        /* KAMERA & INPUT */
-        .kamera-wrapper { position: relative; border-radius: 12px; overflow: hidden; box-shadow: 0 5px 15px rgba(0,0,0,0.2); margin-bottom: 20px; background: #000; }
-        #kamera { width: 100%; height: 280px; object-fit: cover; display: block; }
-        .input-absen { font-size: 24px; padding: 15px; width: 100%; text-align: center; border-radius: 10px; border: 2px solid #ddd; outline: none; transition: 0.3s; font-weight: 600; letter-spacing: 3px; }
-        .input-absen:focus { border-color: #74ebd5; box-shadow: 0 0 10px rgba(116, 235, 213, 0.4); }
-        
-        /* STATUS */
-        #status { margin: 15px 0; font-size: 16px; font-weight: 600; padding: 12px; border-radius: 8px; background: #f8f9fa; color: #555; transition: 0.3s; }
-        
-        /* TOMBOL (BUTTONS) */
-        .btn { padding: 12px 20px; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; transition: 0.3s; color: white; display: inline-flex; align-items: center; justify-content: center; gap: 8px; margin: 5px; }
-        .btn:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
-        .btn-biru { background: linear-gradient(135deg, #36D1DC 0%, #5B86E5 100%); width: 100%; }
-        .btn-abu { background: #6c757d; width: 100%; }
-        .btn-hijau { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
-        .btn-kuning { background: #f39c12; padding: 6px 12px; font-size: 13px; }
-        .btn-merah { background: #e74c3c; padding: 6px 12px; font-size: 13px; }
-        .btn-outline { background: transparent; border: 2px solid #e74c3c; color: #e74c3c; width: 100%; margin-top: 20px; }
-        .btn-outline:hover { background: #e74c3c; color: white; }
-
-        /* PANEL CARI & TABEL */
-        .panel-cari { display: flex; gap: 10px; margin-bottom: 20px; background: #f8f9fa; padding: 15px; border-radius: 10px; }
-        .panel-cari input { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #ddd; outline: none; }
-        
-        .tabel-wrapper { max-height: 350px; overflow-y: auto; border-radius: 10px; border: 1px solid #eee; box-shadow: inset 0 0 10px rgba(0,0,0,0.02); }
-        table { width: 100%; border-collapse: collapse; font-size: 14px; text-align: left; }
-        thead { background: #36D1DC; color: white; position: sticky; top: 0; z-index: 10; }
-        th, td { padding: 12px 15px; border-bottom: 1px solid #eee; vertical-align: middle; }
-        tbody tr:hover { background: #f1f8ff; }
-        
-        /* FOTO DI TABEL */
-        .foto-container { display: flex; gap: 10px; justify-content: center; }
-        .foto-box { position: relative; }
-        .thumb-foto { width: 60px; height: 60px; object-fit: cover; border-radius: 8px; border: 2px solid #ddd; box-shadow: 0 2px 5px rgba(0,0,0,0.1); transition: 0.3s; }
-        .thumb-foto:hover { transform: scale(1.5); z-index: 100; position: relative; border-color: #36D1DC; }
-        .badge { position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%); background: #333; color: #fff; font-size: 9px; padding: 2px 6px; border-radius: 10px; font-weight: bold; }
-        .badge-masuk { background: #11998e; }
-        .badge-pulang { background: #e74c3c; }
-
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        /* Admin Form */
+        .admin-form { display: flex; gap: 10px; margin-bottom: 15px; }
+        .admin-form input { margin-bottom: 0; text-align: left; }
+        .btn-tambah { background: #007bff; color: white; border: none; padding: 0 15px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .btn-hapus { background: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; }
     </style>
 </head>
 <body>
 
-<!-- 1. HALAMAN SCANNER -->
-<div id="halaman-absen" class="container active">
-    <h2>📷 Scanner Absensi</h2>
-    <div class="kamera-wrapper">
-        <video id="kamera" autoplay playsinline></video>
-    </div>
-    <div id="status">⏳ Memuat Kamera... Pastikan beri izin akses.</div>
-    <input type="text" id="nomorAbsen" class="input-absen" placeholder="Ketik PIN 6 Digit" maxlength="6" autofocus autocomplete="off">
-    
-    <div style="margin-top: 15px;">
-        <button class="btn btn-biru" onclick="tampilkanHalaman('halaman-riwayat')">📅 Lihat Riwayat & Data</button>
-        <button class="btn btn-abu" onclick="bukaAdmin()">⚙️ Masuk Panel Admin</button>
-    </div>
-</div>
+<div class="container">
+    <h2>Sistem Absensi</h2>
 
-<!-- 2. HALAMAN RIWAYAT & CARI -->
-<div id="halaman-riwayat" class="container container-lebar">
-    <h2>📅 Riwayat Kehadiran Karyawan</h2>
-    
-    <!-- PANEL SEARCH (Tanggal & PIN/Nama) -->
-    <div class="panel-cari">
-        <input type="date" id="filterTanggal" title="Pilih Tanggal" onchange="renderRiwayat()">
-        <input type="text" id="searchRiwayat" placeholder="🔍 Cari Nama atau PIN..." oninput="renderRiwayat()">
+    <!-- Navigasi -->
+    <div class="nav">
+        <button id="btn-scanner" class="active" onclick="bukaTab('scanner')">Scanner</button>
+        <button id="btn-admin" onclick="bukaTab('admin')">Admin</button>
+        <button id="btn-laporan" onclick="bukaTab('laporan')">Laporan</button>
     </div>
-    
-    <div class="tabel-wrapper">
-        <table>
-            <thead>
-                <tr>
-                    <th>Nama Karyawan</th>
-                    <th>Jam Masuk</th>
-                    <th>Jam Pulang</th>
-                    <th style="text-align: center;">Bukti Foto</th>
-                </tr>
-            </thead>
-            <tbody id="tabelLaporan"></tbody>
-        </table>
-    </div>
-    <button class="btn btn-outline" onclick="tampilkanHalaman('halaman-absen')">⬅ Kembali ke Scanner</button>
-</div>
 
-<!-- 3. HALAMAN ADMIN (CRUD Karyawan) -->
-<div id="halaman-admin" class="container container-lebar">
-    <h2>⚙️ Panel Kelola Karyawan</h2>
-    
-    <div class="panel-cari">
-        <input type="text" id="inPin" placeholder="Buat PIN (Misal: 123456)" maxlength="6"> 
-        <input type="text" id="inNama" placeholder="Nama Lengkap Karyawan">
-        <button class="btn btn-hijau" onclick="simpanKaryawan()">➕ Tambah</button>
+    <!-- TAB 1: SCANNER -->
+    <div id="scanner" class="tab active">
+        <video id="video" autoplay playsinline></video>
+        <div class="input-group">
+            <input type="text" id="pinInput" placeholder="Masukkan PIN Anda">
+        </div>
+        <div class="btn-group">
+            <button class="btn-masuk" onclick="prosesAbsen('masuk')">ABSEN MASUK</button>
+            <button class="btn-pulang" onclick="prosesAbsen('pulang')">ABSEN PULANG</button>
+        </div>
     </div>
-    
-    <div class="tabel-wrapper">
+
+    <!-- TAB 2: ADMIN -->
+    <div id="admin" class="tab">
+        <div class="admin-form">
+            <input type="text" id="newPin" placeholder="PIN Baru" style="width: 30%;">
+            <input type="text" id="newNama" placeholder="Nama Karyawan">
+            <button class="btn-tambah" onclick="tambahKaryawan()">Tambah</button>
+        </div>
         <table>
             <thead>
                 <tr>
                     <th>PIN</th>
-                    <th>Nama Karyawan</th>
-                    <th style="text-align: center;">Aksi</th>
+                    <th>Nama</th>
+                    <th>Aksi</th>
                 </tr>
             </thead>
-            <tbody id="tabelAdmin"></tbody>
+            <tbody id="tabelAdmin">
+                <!-- Data Karyawan Muncul Disini -->
+            </tbody>
         </table>
     </div>
-    <button class="btn btn-outline" onclick="tampilkanHalaman('halaman-absen')">⬅ Kembali ke Scanner</button>
+
+    <!-- TAB 3: LAPORAN -->
+    <div id="laporan" class="tab">
+        <input type="date" id="tglLaporan" onchange="renderRiwayat()">
+        <input type="text" id="cariRiwayat" placeholder="Cari Nama / PIN..." onkeyup="renderRiwayat()">
+        <table>
+            <thead>
+                <tr>
+                    <th>Data</th>
+                    <th>Masuk</th>
+                    <th>Pulang</th>
+                    <th>Foto</th>
+                </tr>
+            </thead>
+            <tbody id="tabelLaporan">
+                <!-- Data Riwayat Muncul Disini -->
+            </tbody>
+        </table>
+    </div>
 </div>
 
-<!-- Canvas Hidden untuk mengambil gambar -->
-<canvas id="canvasFoto" style="display:none;"></canvas>
-
 <script>
-    // Inisialisasi Elemen
-    const video = document.getElementById('kamera');
-    const status = document.getElementById('status');
-    const canvas = document.getElementById('canvasFoto');
-    const inputTgl = document.getElementById('filterTanggal');
+    // ==========================================
+    // 1. KONFIGURASI FIREBASE (DARI KODE KAMU)
+    // ==========================================
+    const firebaseConfig = {
+      apiKey: "AIzaSyClyJ2midd0s8kvgxehUHda8SJdQhXALDk",
+      authDomain: "absensikeren.firebaseapp.com",
+      databaseURL: "https://absensikeren-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "absensikeren",
+      storageBucket: "absensikeren.firebasestorage.app",
+      messagingSenderId: "121393793533",
+      appId: "1:121393793533:web:b14428a650d1fe05713194"
+    };
 
-    // Load Database dari LocalStorage
-    let dbKaryawan = JSON.parse(localStorage.getItem('dataKaryawan')) || {};
-    let dbAbsenMaster = JSON.parse(localStorage.getItem('dbAbsenMaster')) || {};
+    // Inisialisasi Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
 
-    // Set Default Tanggal Hari Ini ke Panel Search Kalender
-    function getTanggalHariIni() { return new Date().toLocaleDateString('en-CA'); }
-    inputTgl.value = getTanggalHariIni();
+    // ==========================================
+    // 2. VARIABEL GLOBAL & LOGIKA KAMERA
+    // ==========================================
+    let dataKaryawan = {};
+    let dataAbsensi = {};
 
-    // 1. Setup Kamera
-    navigator.mediaDevices.getUserMedia({video: true})
-        .then(stream => { 
-            video.srcObject = stream; 
-            status.innerHTML = "✅ Kamera Siap! Silakan masukkan PIN."; 
-            status.style.background = "#d4edda"; status.style.color = "#155724";
-        })
-        .catch(err => { 
-            status.innerHTML = "❌ <b>Kamera Gagal:</b> " + err.message; 
-            status.style.background = "#f8d7da"; status.style.color = "#721c24";
-        });
+    // Aktifkan Kamera
+    const video = document.getElementById('video');
+    const canvas = document.createElement('canvas');
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
+        .then(stream => { video.srcObject = stream; })
+        .catch(err => alert("Gagal mengakses kamera: " + err));
 
-    // 2. Fungsi Ambil Foto dari Video
     function ambilFoto() {
-        canvas.width = 320; canvas.height = 240;
-        canvas.getContext('2d').drawImage(video, 0, 0, 320, 240);
-        return canvas.toDataURL('image/jpeg', 0.6); // Kualitas 60% agar storage aman
+        canvas.width = 300; // Dikompres agar database tidak cepat penuh
+        canvas.height = (video.videoHeight / video.videoWidth) * 300;
+        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+        return canvas.toDataURL('image/jpeg', 0.6); 
     }
 
-    // 3. Logika Absen (Masuk & Pulang)
-    document.getElementById('nomorAbsen').addEventListener('keypress', (e) => {
-        if(e.key === 'Enter') {
-            let pin = e.target.value.trim();
-            let tgl = getTanggalHariIni();
-            
-            if(!dbKaryawan[pin]) { 
-                status.innerHTML = "⚠️ <b>PIN Tidak Terdaftar!</b>";
-                status.style.background = "#fff3cd"; status.style.color = "#856404";
-                e.target.value = ""; return; 
-            }
-            
-            if(!dbAbsenMaster[tgl]) dbAbsenMaster[tgl] = {};
-            
-            let waktuNow = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    // Pindah Tab
+    function bukaTab(idTab) {
+        document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+        document.querySelectorAll('.nav button').forEach(btn => btn.classList.remove('active'));
+        document.getElementById(idTab).classList.add('active');
+        document.getElementById('btn-' + idTab).classList.add('active');
+    }
 
-            // Cek apakah sudah absen masuk hari ini
-            if(!dbAbsenMaster[tgl][pin]) {
-                // PROSES MASUK
-                dbAbsenMaster[tgl][pin] = { 
-                    nama: dbKaryawan[pin], 
-                    masuk: waktuNow, 
-                    pulang: "-", 
-                    fM: ambilFoto(), // Simpan foto masuk
-                    fP: ""           // Foto pulang kosong
-                };
-                status.innerHTML = `✅ <b>Berhasil MASUK</b><br>${dbKaryawan[pin]} (${waktuNow})`;
-                status.style.background = "#d4edda"; status.style.color = "#155724";
-            } else if(dbAbsenMaster[tgl][pin].pulang === "-") {
-                // PROSES PULANG
-                dbAbsenMaster[tgl][pin].pulang = waktuNow;
-                dbAbsenMaster[tgl][pin].fP = ambilFoto(); // Simpan foto pulang
-                status.innerHTML = `✅ <b>Berhasil PULANG</b><br>${dbKaryawan[pin]} (${waktuNow})`;
-                status.style.background = "#d4edda"; status.style.color = "#155724";
-            } else {
-                status.innerHTML = `⚠️ <b>Sudah Absen Pulang!</b><br>Sampai jumpa besok, ${dbKaryawan[pin]}.`;
-                status.style.background = "#cce5ff"; status.style.color = "#004085";
-            }
-            
-            // Simpan ke local storage
-            localStorage.setItem('dbAbsenMaster', JSON.stringify(dbAbsenMaster));
-            e.target.value = ""; // Kosongkan input
-        }
+    // Set Tanggal Hari Ini di Laporan
+    document.getElementById('tglLaporan').value = new Date().toISOString().split('T')[0];
+
+    // ==========================================
+    // 3. LOGIKA FIREBASE (REALTIME DATABASE)
+    // ==========================================
+
+    // A. Ambil Data Karyawan secara Realtime
+    db.ref('karyawan').on('value', (snapshot) => {
+        dataKaryawan = snapshot.val() || {};
+        renderAdmin();
     });
 
-    // 4. Navigasi Halaman
-    function tampilkanHalaman(idTarget) {
-        document.querySelectorAll('.container').forEach(el => el.classList.remove('active'));
-        document.getElementById(idTarget).classList.add('active');
-        
-        if(idTarget === 'halaman-riwayat') renderRiwayat();
-        if(idTarget === 'halaman-admin') renderAdmin();
-    }
+    // B. Ambil Data Absensi secara Realtime
+    db.ref('absensi').on('value', (snapshot) => {
+        dataAbsensi = snapshot.val() || {};
+        renderRiwayat();
+    });
 
-    function bukaAdmin() { 
-        if(prompt("Masukkan Password Admin:") === "admin") { // Password default: admin
-            tampilkanHalaman('halaman-admin'); 
-        } else {
-            alert("Password Salah!");
-        }
-    }
-
-    // ==========================================
-    // 5. LOGIKA PANEL ADMIN (TAMBAH, EDIT, HAPUS)
-    // ==========================================
-    function simpanKaryawan() {
-        let pin = document.getElementById('inPin').value.trim();
-        let nama = document.getElementById('inNama').value.trim();
-        
-        if(pin && nama) { 
-            dbKaryawan[pin] = nama; 
-            localStorage.setItem('dataKaryawan', JSON.stringify(dbKaryawan)); 
-            document.getElementById('inPin').value = "";
-            document.getElementById('inNama').value = "";
-            renderAdmin(); 
+    // C. Tambah / Hapus Karyawan (Tersimpan Online)
+    function tambahKaryawan() {
+        let pin = document.getElementById('newPin').value;
+        let nama = document.getElementById('newNama').value;
+        if (pin && nama) {
+            db.ref('karyawan/' + pin).set(nama);
+            document.getElementById('newPin').value = '';
+            document.getElementById('newNama').value = '';
+            alert("Karyawan berhasil ditambahkan!");
         } else {
             alert("PIN dan Nama wajib diisi!");
         }
     }
 
-    function editKaryawan(pinLama) {
-        let namaBaru = prompt(`Edit Nama untuk PIN ${pinLama}:`, dbKaryawan[pinLama]);
-        if(namaBaru !== null && namaBaru.trim() !== "") {
-            dbKaryawan[pinLama] = namaBaru.trim();
-            localStorage.setItem('dataKaryawan', JSON.stringify(dbKaryawan));
-            renderAdmin();
+    function hapusKaryawan(pin) {
+        if (confirm('Yakin ingin menghapus karyawan ini?')) {
+            db.ref('karyawan/' + pin).remove();
         }
     }
 
-    function hapusKaryawan(pin) { 
-        if(confirm(`Yakin ingin menghapus karyawan: ${dbKaryawan[pin]}?`)) {
-            delete dbKaryawan[pin]; 
-            localStorage.setItem('dataKaryawan', JSON.stringify(dbKaryawan)); 
-            renderAdmin(); 
+    // D. Proses Absen Masuk & Pulang
+    function prosesAbsen(tipe) {
+        let pin = document.getElementById('pinInput').value;
+        if (!pin || !dataKaryawan[pin]) {
+            alert("PIN tidak valid atau tidak terdaftar!");
+            return;
+        }
+
+        let foto = ambilFoto();
+        let tgl = new Date().toISOString().split('T')[0]; // Format YYYY-MM-DD
+        let waktu = new Date().toLocaleTimeString('id-ID'); // Format Jam
+        let nama = dataKaryawan[pin];
+
+        if (tipe === 'masuk') {
+            db.ref(`absensi/${tgl}/${pin}`).update({
+                nama: nama,
+                masuk: waktu,
+                fotoMasuk: foto
+            }).then(() => {
+                alert(`Terima kasih ${nama}, Absen MASUK berhasil!`);
+                document.getElementById('pinInput').value = '';
+            });
+        } else if (tipe === 'pulang') {
+            db.ref(`absensi/${tgl}/${pin}`).update({
+                nama: nama,
+                pulang: waktu,
+                fotoPulang: foto
+            }).then(() => {
+                alert(`Terima kasih ${nama}, Absen PULANG berhasil!`);
+                document.getElementById('pinInput').value = '';
+            });
         }
     }
 
+    // ==========================================
+    // 4. RENDER TAMPILAN KE LAYAR
+    // ==========================================
     function renderAdmin() {
-        let tbody = document.getElementById('tabelAdmin'); 
-        tbody.innerHTML = "";
-        for(let pin in dbKaryawan) {
+        let tbody = document.getElementById('tabelAdmin');
+        tbody.innerHTML = '';
+        for (let pin in dataKaryawan) {
             tbody.innerHTML += `
-            <tr>
-                <td><b>${pin}</b></td>
-                <td>${dbKaryawan[pin]}</td>
-                <td style="text-align: center;">
-                    <button class="btn btn-kuning" onclick="editKaryawan('${pin}')">✏️ Edit</button>
-                    <button class="btn btn-merah" onclick="hapusKaryawan('${pin}')">🗑️ Hapus</button>
-                </td>
-            </tr>`;
+                <tr>
+                    <td><b>${pin}</b></td>
+                    <td>${dataKaryawan[pin]}</td>
+                    <td><button class="btn-hapus" onclick="hapusKaryawan('${pin}')">Hapus</button></td>
+                </tr>
+            `;
         }
     }
 
-    // ==========================================
-    // 6. LOGIKA RIWAYAT (DENGAN KALENDER & CARI)
-    // ==========================================
     function renderRiwayat() {
+        let tglDipilih = document.getElementById('tglLaporan').value;
+        let kataKunci = document.getElementById('cariRiwayat').value.toLowerCase();
         let tbody = document.getElementById('tabelLaporan');
-        let tglDipilih = inputTgl.value; // Dari input type="date"
-        let kataKunci = document.getElementById('searchRiwayat').value.toLowerCase(); // Dari input text
-        
-        tbody.innerHTML = "";
-        
-        // Cek apakah ada data di tanggal tersebut
-        if(dbAbsenMaster[tglDipilih]) {
-            let dataHariIni = dbAbsenMaster[tglDipilih];
-            let adaData = false;
+        tbody.innerHTML = '';
 
-            for(let pin in dataHariIni) {
-                let data = dataHariIni[pin];
+        let dataHariIni = dataAbsensi[tglDipilih];
+
+        if (dataHariIni) {
+            let adaData = false;
+            for (let pin in dataHariIni) {
+                let d = dataHariIni[pin];
                 
-                // Filter berdasarkan Nama atau PIN
-                if(data.nama.toLowerCase().includes(kataKunci) || pin.includes(kataKunci)) {
+                // Fitur Pencarian
+                if (d.nama.toLowerCase().includes(kataKunci) || pin.includes(kataKunci)) {
                     adaData = true;
-                    // HTML untuk foto berdampingan (jika belum pulang, foto pulang tidak tampil)
-                    let fotoMasuk = `<div class="foto-box"><img src="${data.fM}" class="thumb-foto"><span class="badge badge-masuk">IN</span></div>`;
-                    let fotoPulang = data.fP ? `<div class="foto-box"><img src="${data.fP}" class="thumb-foto"><span class="badge badge-pulang">OUT</span></div>` : '';
+                    let fotoM = d.fotoMasuk ? `<img src="${d.fotoMasuk}">` : '-';
+                    let fotoP = d.fotoPulang ? `<img src="${d.fotoPulang}">` : '-';
+                    let jamM = d.masuk ? `<span style="color:green; font-weight:bold;">${d.masuk}</span>` : '-';
+                    let jamP = d.pulang ? `<span style="color:red; font-weight:bold;">${d.pulang}</span>` : '-';
 
                     tbody.innerHTML += `
-                    <tr>
-                        <td><b>${data.nama}</b><br><small style="color:gray;">PIN: ${pin}</small></td>
-                        <td style="color:#11998e; font-weight:bold;">${data.masuk}</td>
-                        <td style="color:#e74c3c; font-weight:bold;">${data.pulang}</td>
-                        <td>
-                            <div class="foto-container">
-                                ${fotoMasuk}
-                                ${fotoPulang}
-                            </div>
-                        </td>
-                    </tr>`;
+                        <tr>
+                            <td><b>${d.nama}</b><br><small>PIN: ${pin}</small></td>
+                            <td>${jamM}</td>
+                            <td>${jamP}</td>
+                            <td class="foto-container">${fotoM} ${fotoP}</td>
+                        </tr>
+                    `;
                 }
             }
-            if(!adaData) tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;">Data tidak ditemukan.</td></tr>`;
+            if (!adaData) {
+                tbody.innerHTML = `<tr><td colspan="4">Data tidak ditemukan.</td></tr>`;
+            }
         } else {
-            tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;">Belum ada absensi pada tanggal ini.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="4">Belum ada absensi pada tanggal ini.</td></tr>`;
         }
     }
 </script>
+
 </body>
 </html>
-
