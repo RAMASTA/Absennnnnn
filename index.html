@@ -21,7 +21,7 @@
         .tab { display: none; }
         .tab.active { display: block; }
         
-        /* Scanner */
+        /* Scanner & Kamera Cermin (transform scaleX -1) */
         video { width: 100%; border-radius: 12px; background: #000; margin-bottom: 15px; transform: scaleX(-1); }
         .input-group { margin-bottom: 15px; }
         input[type="text"], input[type="date"] { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; font-size: 16px; text-align: center; }
@@ -48,12 +48,11 @@
 <div class="container">
     <h2>Sistem Absensi</h2>
 
-    <!-- Navigasi -->
+    <!-- Navigasi (Admin dan Laporan sekarang dilindungi password) -->
     <div class="nav">
         <button id="btn-scanner" class="active" onclick="bukaTab('scanner')">Scanner</button>
-        <!-- Tombol Admin sekarang memanggil fungsi cekPasswordAdmin -->
-        <button id="btn-admin" onclick="cekPasswordAdmin()">Admin</button>
-        <button id="btn-laporan" onclick="bukaTab('laporan')">Laporan</button>
+        <button id="btn-admin" onclick="cekPassword('admin')">Admin</button>
+        <button id="btn-laporan" onclick="cekPassword('laporan')">Laporan</button>
     </div>
 
     <!-- TAB 1: SCANNER -->
@@ -123,7 +122,6 @@
       appId: "1:121393793533:web:b14428a650d1fe05713194"
     };
 
-    // Inisialisasi Firebase
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
@@ -133,21 +131,29 @@
     let dataKaryawan = {};
     let dataAbsensi = {};
 
-    // Aktifkan Kamera
     const video = document.getElementById('video');
     const canvas = document.createElement('canvas');
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
         .then(stream => { video.srcObject = stream; })
         .catch(err => alert("Gagal mengakses kamera: " + err));
 
+    // Ambil Foto Cermin (Mirror) ke Canvas
     function ambilFoto() {
         canvas.width = 300; 
         canvas.height = (video.videoHeight / video.videoWidth) * 300;
-        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+        let ctx = canvas.getContext('2d');
+        
+        // Membalik (mirror) kanvas sebelum digambar supaya hasil foto tidak terbalik
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+        
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         return canvas.toDataURL('image/jpeg', 0.6); 
     }
 
-    // Fungsi Pindah Tab
+    // ==========================================
+    // 3. LOGIKA NAVIGASI & PASSWORD
+    // ==========================================
     function bukaTab(idTab) {
         document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
         document.querySelectorAll('.nav button').forEach(btn => btn.classList.remove('active'));
@@ -156,36 +162,31 @@
         document.getElementById('btn-' + idTab).classList.add('active');
     }
 
-    // Fungsi Cek Password Khusus Admin
-    function cekPasswordAdmin() {
-        let password = prompt("Masukkan Password Admin:");
+    // Fungsi Password Universal (Admin & Laporan)
+    function cekPassword(tabTujuan) {
+        let password = prompt("Masukkan Password Khusus:");
         if (password === "RANGGA$") {
-            bukaTab('admin');
-        } else if (password !== null) { // Jika user tidak klik Cancel
+            bukaTab(tabTujuan);
+        } else if (password !== null) { 
             alert("Password Salah! Akses Ditolak.");
         }
     }
 
-    // Set Tanggal Hari Ini di Laporan
     document.getElementById('tglLaporan').value = new Date().toISOString().split('T')[0];
 
     // ==========================================
-    // 3. LOGIKA FIREBASE (REALTIME DATABASE)
+    // 4. LOGIKA FIREBASE (REALTIME) & ABSEN
     // ==========================================
-
-    // A. Ambil Data Karyawan secara Realtime
     db.ref('karyawan').on('value', (snapshot) => {
         dataKaryawan = snapshot.val() || {};
         renderAdmin();
     });
 
-    // B. Ambil Data Absensi secara Realtime
     db.ref('absensi').on('value', (snapshot) => {
         dataAbsensi = snapshot.val() || {};
         renderRiwayat();
     });
 
-    // C. Tambah / Hapus Karyawan (Tersimpan Online)
     function tambahKaryawan() {
         let pin = document.getElementById('newPin').value;
         let nama = document.getElementById('newNama').value;
@@ -205,7 +206,7 @@
         }
     }
 
-    // D. Proses Absen Masuk & Pulang
+    // Logika Pintar Absen (Cegah Dobel & Wajib Berurutan)
     function prosesAbsen(tipe) {
         let pin = document.getElementById('pinInput').value;
         if (!pin || !dataKaryawan[pin]) {
@@ -213,23 +214,49 @@
             return;
         }
 
-        let foto = ambilFoto();
         let tgl = new Date().toISOString().split('T')[0];
         let waktu = new Date().toLocaleTimeString('id-ID'); 
         let nama = dataKaryawan[pin];
 
+        // Ambil status absensi orang ini pada hari ini
+        let statusHariIni = (dataAbsensi[tgl] && dataAbsensi[tgl][pin]) ? dataAbsensi[tgl][pin] : null;
+
         if (tipe === 'masuk') {
-            db.ref(`absensi/${tgl}/${pin}`).update({
-                nama: nama,
-                masuk: waktu,
-                fotoMasuk: foto
-            }).then(() => {
+            // Cek jika hari ini dia sudah masuk TAPI belum pulang
+            if (statusHariIni && statusHariIni.masuk && !statusHariIni.pulang) {
+                alert(`Maaf ${nama}, kamu sudah absen MASUK hari ini. Silakan absen PULANG.`);
+                return; // Batalkan proses
+            }
+            
+            let foto = ambilFoto();
+            let dataUpdate = { nama: nama, masuk: waktu, fotoMasuk: foto };
+            
+            // Jika dia masuk lagi setelah pulang (lembur/shift 2), reset absen pulangnya
+            if (statusHariIni && statusHariIni.pulang) {
+                dataUpdate.pulang = null;
+                dataUpdate.fotoPulang = null;
+            }
+
+            db.ref(`absensi/${tgl}/${pin}`).update(dataUpdate).then(() => {
                 alert(`Terima kasih ${nama}, Absen MASUK berhasil!`);
                 document.getElementById('pinInput').value = '';
             });
+
         } else if (tipe === 'pulang') {
+            // Cek jika dia klik pulang TAPI belum masuk sama sekali hari ini
+            if (!statusHariIni || !statusHariIni.masuk) {
+                alert(`Maaf ${nama}, kamu belum absen MASUK. Silakan absen MASUK terlebih dahulu.`);
+                return; // Batalkan proses
+            }
+            
+            // Cek jika dia sudah klik pulang sebelumnya
+            if (statusHariIni && statusHariIni.pulang) {
+                alert(`Maaf ${nama}, kamu sudah absen PULANG hari ini.`);
+                return; // Batalkan proses
+            }
+
+            let foto = ambilFoto();
             db.ref(`absensi/${tgl}/${pin}`).update({
-                nama: nama,
                 pulang: waktu,
                 fotoPulang: foto
             }).then(() => {
@@ -240,7 +267,7 @@
     }
 
     // ==========================================
-    // 4. RENDER TAMPILAN KE LAYAR
+    // 5. RENDER TAMPILAN KE LAYAR
     // ==========================================
     function renderAdmin() {
         let tbody = document.getElementById('tabelAdmin');
@@ -269,184 +296,6 @@
             for (let pin in dataHariIni) {
                 let d = dataHariIni[pin];
                 
-                if (d.nama.toLowerCase().includes(kataKunci) || pin.includes(kataKunci)) {
-                    adaData = true;
-                    let fotoM = d.fotoMasuk ? `<img src="${d.fotoMasuk}">` : '-';
-                    let fotoP = d.fotoPulang ? `<img src="${d.fotoPulang}">` : '-';
-                    let jamM = d.masuk ? `<span style="color:green; font-weight:bold;">${d.masuk}</span>` : '-';
-                    let jamP = d.pulang ? `<span style="color:red; font-weight:bold;">${d.pulang}</span>` : '-';
-
-                    tbody.innerHTML += `
-                        <tr>
-                            <td><b>${d.nama}</b><br><small>PIN: ${pin}</small></td>
-                            <td>${jamM}</td>
-                            <td>${jamP}</td>
-                            <td class="foto-container">${fotoM} ${fotoP}</td>
-                        </tr>
-                    `;
-                }
-            }
-            if (!adaData) {
-                tbody.innerHTML = `<tr><td colspan="4">Data tidak ditemukan.</td></tr>`;
-            }
-        } else {
-            tbody.innerHTML = `<tr><td colspan="4">Belum ada absensi pada tanggal ini.</td></tr>`;
-        }
-    }
-</script>
-
-</body>
-</html>
-<script>
-    // ==========================================
-    // 1. KONFIGURASI FIREBASE (DARI KODE KAMU)
-    // ==========================================
-    const firebaseConfig = {
-      apiKey: "AIzaSyClyJ2midd0s8kvgxehUHda8SJdQhXALDk",
-      authDomain: "absensikeren.firebaseapp.com",
-      databaseURL: "https://absensikeren-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "absensikeren",
-      storageBucket: "absensikeren.firebasestorage.app",
-      messagingSenderId: "121393793533",
-      appId: "1:121393793533:web:b14428a650d1fe05713194"
-    };
-
-    // Inisialisasi Firebase
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-
-    // ==========================================
-    // 2. VARIABEL GLOBAL & LOGIKA KAMERA
-    // ==========================================
-    let dataKaryawan = {};
-    let dataAbsensi = {};
-
-    // Aktifkan Kamera
-    const video = document.getElementById('video');
-    const canvas = document.createElement('canvas');
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
-        .then(stream => { video.srcObject = stream; })
-        .catch(err => alert("Gagal mengakses kamera: " + err));
-
-    function ambilFoto() {
-        canvas.width = 300; // Dikompres agar database tidak cepat penuh
-        canvas.height = (video.videoHeight / video.videoWidth) * 300;
-        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-        return canvas.toDataURL('image/jpeg', 0.6); 
-    }
-
-    // Pindah Tab
-    function bukaTab(idTab) {
-        document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
-        document.querySelectorAll('.nav button').forEach(btn => btn.classList.remove('active'));
-        document.getElementById(idTab).classList.add('active');
-        document.getElementById('btn-' + idTab).classList.add('active');
-    }
-
-    // Set Tanggal Hari Ini di Laporan
-    document.getElementById('tglLaporan').value = new Date().toISOString().split('T')[0];
-
-    // ==========================================
-    // 3. LOGIKA FIREBASE (REALTIME DATABASE)
-    // ==========================================
-
-    // A. Ambil Data Karyawan secara Realtime
-    db.ref('karyawan').on('value', (snapshot) => {
-        dataKaryawan = snapshot.val() || {};
-        renderAdmin();
-    });
-
-    // B. Ambil Data Absensi secara Realtime
-    db.ref('absensi').on('value', (snapshot) => {
-        dataAbsensi = snapshot.val() || {};
-        renderRiwayat();
-    });
-
-    // C. Tambah / Hapus Karyawan (Tersimpan Online)
-    function tambahKaryawan() {
-        let pin = document.getElementById('newPin').value;
-        let nama = document.getElementById('newNama').value;
-        if (pin && nama) {
-            db.ref('karyawan/' + pin).set(nama);
-            document.getElementById('newPin').value = '';
-            document.getElementById('newNama').value = '';
-            alert("Karyawan berhasil ditambahkan!");
-        } else {
-            alert("PIN dan Nama wajib diisi!");
-        }
-    }
-
-    function hapusKaryawan(pin) {
-        if (confirm('Yakin ingin menghapus karyawan ini?')) {
-            db.ref('karyawan/' + pin).remove();
-        }
-    }
-
-    // D. Proses Absen Masuk & Pulang
-    function prosesAbsen(tipe) {
-        let pin = document.getElementById('pinInput').value;
-        if (!pin || !dataKaryawan[pin]) {
-            alert("PIN tidak valid atau tidak terdaftar!");
-            return;
-        }
-
-        let foto = ambilFoto();
-        let tgl = new Date().toISOString().split('T')[0]; // Format YYYY-MM-DD
-        let waktu = new Date().toLocaleTimeString('id-ID'); // Format Jam
-        let nama = dataKaryawan[pin];
-
-        if (tipe === 'masuk') {
-            db.ref(`absensi/${tgl}/${pin}`).update({
-                nama: nama,
-                masuk: waktu,
-                fotoMasuk: foto
-            }).then(() => {
-                alert(`Terima kasih ${nama}, Absen MASUK berhasil!`);
-                document.getElementById('pinInput').value = '';
-            });
-        } else if (tipe === 'pulang') {
-            db.ref(`absensi/${tgl}/${pin}`).update({
-                nama: nama,
-                pulang: waktu,
-                fotoPulang: foto
-            }).then(() => {
-                alert(`Terima kasih ${nama}, Absen PULANG berhasil!`);
-                document.getElementById('pinInput').value = '';
-            });
-        }
-    }
-
-    // ==========================================
-    // 4. RENDER TAMPILAN KE LAYAR
-    // ==========================================
-    function renderAdmin() {
-        let tbody = document.getElementById('tabelAdmin');
-        tbody.innerHTML = '';
-        for (let pin in dataKaryawan) {
-            tbody.innerHTML += `
-                <tr>
-                    <td><b>${pin}</b></td>
-                    <td>${dataKaryawan[pin]}</td>
-                    <td><button class="btn-hapus" onclick="hapusKaryawan('${pin}')">Hapus</button></td>
-                </tr>
-            `;
-        }
-    }
-
-    function renderRiwayat() {
-        let tglDipilih = document.getElementById('tglLaporan').value;
-        let kataKunci = document.getElementById('cariRiwayat').value.toLowerCase();
-        let tbody = document.getElementById('tabelLaporan');
-        tbody.innerHTML = '';
-
-        let dataHariIni = dataAbsensi[tglDipilih];
-
-        if (dataHariIni) {
-            let adaData = false;
-            for (let pin in dataHariIni) {
-                let d = dataHariIni[pin];
-                
-                // Fitur Pencarian
                 if (d.nama.toLowerCase().includes(kataKunci) || pin.includes(kataKunci)) {
                     adaData = true;
                     let fotoM = d.fotoMasuk ? `<img src="${d.fotoMasuk}">` : '-';
